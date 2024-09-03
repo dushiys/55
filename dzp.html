@@ -1,0 +1,359 @@
+﻿<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>沛宝专属扫雷</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            position: relative;
+            background: #f8c6d7;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #game-start, #game-win, #game-over, #game-mode {
+            display: none;
+        }
+
+        .button {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+
+        .grid {
+            display: inline-block;
+            border-collapse: collapse;
+            margin: 20px;
+        }
+
+        .cell {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #000;
+            text-align: center;
+            vertical-align: middle;
+            cursor: pointer;
+            background-color: #fff;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.3);
+        }
+
+        .cell.revealed {
+            background-color: #eee;
+            cursor: default;
+        }
+
+        .cell.mine {
+            background-color: red;
+            color: white;
+        }
+
+        .cell.safe {
+            background-color: #ddd;
+        }
+
+        #encouragement {
+            margin: 20px;
+            font-size: 18px;
+        }
+
+        #background-decorations {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            overflow: hidden;
+            z-index: -1; /* Ensure it's behind the game content */
+        }
+
+        #background-decorations .star {
+            position: absolute;
+            font-size: 24px;
+            color: #FFD700; /* Star color */
+        }
+
+        #timer {
+            margin: 20px;
+            font-size: 24px;
+        }
+
+        @keyframes float {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-100vh); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-mode">
+        <h1>哥，我看看想玩哪个</h1>
+        <button class="button" onclick="selectDifficulty('easy')">洒洒水啦 (❤️)</button>
+        <button class="button" onclick="selectDifficulty('medium')">手拿把掐 (❤️❤️)</button>
+        <button class="button" onclick="selectDifficulty('hard')">我嘞个豆 ！(❤️❤️❤️)</button>
+        <button class="button" onclick="selectDifficulty('hell')">牛逼，哥，真牛逼啊 (❤️❤️❤️❤️)</button>
+    </div>
+    <div id="game-start">
+        <h1>沛沛专属 by舔狗举</h1>
+        <button class="button" onclick="startGame()">干就完了</button>
+    </div>
+    <div id="game-win">
+        <h1>牛逼宝宝，小弟膜拜膜拜 🎉</h1>
+        <button class="button" onclick="resetGame()">玩不够再叫我玩一次</button>
+        <button class="button" onclick="showModeSelection()">哥，换个模式</button>
+    </div>
+    <div id="game-over">
+        <h1>橘子：炸💣💣💣啦！宝宝 💔</h1>
+        <h2>面条：都怪你了，哼哼哼 💔</h2>
+        <button class="button" onclick="resetGame()">我再试试</button>
+        <button class="button" onclick="showModeSelection()">哥，换个模式</button>
+    </div>
+    <div id="game-board"></div>
+    <div id="timer" style="display: none;">赶紧吧都还: <span id="time">--</span></div>
+    <div id="encouragement"></div>
+    <div id="background-decorations"></div>
+
+    <script>
+        let rows = 10;
+        let cols = 10;
+        let numMines = 10;
+        let board = [];
+        let gameOver = false;
+        let cellsRevealed = 0;
+        let timerInterval;
+        let timeLimit = 0; // in seconds
+
+        function startGame() {
+            document.getElementById('game-start').style.display = 'none';
+            document.getElementById('game-mode').style.display = 'none';
+            resetGame();
+        }
+
+        function showModeSelection() {
+            document.getElementById('game-start').style.display = 'none';
+            document.getElementById('game-win').style.display = 'none';
+            document.getElementById('game-over').style.display = 'none';
+            document.getElementById('game-board').innerHTML = '';
+            document.getElementById('timer').style.display = 'none';
+            document.getElementById('encouragement').innerText = '';
+            document.getElementById('background-decorations').innerHTML = '';
+            document.getElementById('game-mode').style.display = 'block';
+        }
+
+        function selectDifficulty(level) {
+            switch(level) {
+                case 'easy':
+                    rows = 10;
+                    cols = 10;
+                    numMines = 10;
+                    timeLimit = 0;
+                    break;
+                case 'medium':
+                    rows = 12;
+                    cols = 12;
+                    numMines = 20;
+                    timeLimit = 0;
+                    break;
+                case 'hard':
+                    rows = 15;
+                    cols = 15;
+                    numMines = 30;
+                    timeLimit = 120; // 2 minutes
+                    break;
+                case 'hell':
+                    rows = 20;
+                    cols = 15;
+                    numMines = 80;
+                    timeLimit = 150; // 2.5 minutes
+                    break;
+            }
+            document.getElementById('game-start').style.display = 'block';
+            document.getElementById('game-mode').style.display = 'none';
+        }
+
+        function resetGame() {
+            gameOver = false;
+            cellsRevealed = 0;
+            board = [];
+            document.getElementById('game-board').innerHTML = '';
+            document.getElementById('encouragement').innerText = '';
+            document.getElementById('background-decorations').innerHTML = '';
+            document.getElementById('timer').style.display = timeLimit > 0 ? 'block' : 'none';
+            document.getElementById('time').innerText = timeLimit > 0 ? timeLimit : '--';
+
+            initializeBoard();
+            renderBoard();
+            placeStars();
+
+            if (timeLimit > 0) {
+                let timeRemaining = timeLimit;
+                timerInterval = setInterval(() => {
+                    timeRemaining--;
+                    document.getElementById('time').innerText = timeRemaining;
+                    if (timeRemaining <= 0) {
+                        clearInterval(timerInterval);
+                        if (!gameOver) {
+                            gameOver = true;
+                            revealAllMines();
+                            document.getElementById('game-over').style.display = 'block';
+                        }
+                    }
+                }, 1000);
+            }
+        }
+
+        function initializeBoard() {
+            for (let r = 0; r < rows; r++) {
+                board[r] = [];
+                for (let c = 0; c < cols; c++) {
+                    board[r][c] = {
+                        revealed: false,
+                        mine: false,
+                        adjacentMines: 0
+                    };
+                }
+            }
+
+            let minesPlaced = 0;
+            while (minesPlaced < numMines) {
+                const r = Math.floor(Math.random() * rows);
+                const c = Math.floor(Math.random() * cols);
+                if (!board[r][c].mine) {
+                    board[r][c].mine = true;
+                    minesPlaced++;
+                    updateAdjacentCounts(r, c);
+                }
+            }
+        }
+
+        function renderBoard() {
+            const boardElement = document.getElementById('game-board');
+            const table = document.createElement('table');
+            table.className = 'grid';
+            for (let r = 0; r < rows; r++) {
+                const row = document.createElement('tr');
+                for (let c = 0; c < cols; c++) {
+                    const cell = document.createElement('td');
+                    cell.className = 'cell';
+                    cell.addEventListener('click', () => handleClick(r, c));
+                    row.appendChild(cell);
+                }
+                table.appendChild(row);
+            }
+            boardElement.appendChild(table);
+        }
+
+        function handleClick(row, col) {
+            if (gameOver) return;
+            if (board[row][col].revealed) return;
+
+            if (board[row][col].mine) {
+                gameOver = true;
+                revealAllMines();
+                document.getElementById('game-over').style.display = 'block';
+                clearInterval(timerInterval);
+                return;
+            }
+
+            revealCell(row, col);
+            cellsRevealed++;
+            updateEncouragement();
+
+            if (checkWin()) {
+                displayHearts();
+                document.getElementById('game-win').style.display = 'block';
+                clearInterval(timerInterval);
+            }
+        }
+
+        function revealCell(row, col) {
+            if (row < 0 || row >= rows || col < 0 || col >= cols) return;
+            if (board[row][col].revealed) return;
+            board[row][col].revealed = true;
+
+            const cellElement = document.querySelector(`.grid tr:nth-child(${row + 1}) td:nth-child(${col + 1})`);
+            if (cellElement) {
+                cellElement.classList.add('revealed');
+                cellElement.textContent = board[row][col].adjacentMines || '';
+                if (board[row][col].adjacentMines === 0) {
+                    for (let r = row - 1; r <= row + 1; r++) {
+                        for (let c = col - 1; c <= col + 1; c++) {
+                            if (r !== row || c !== col) {
+                                revealCell(r, c);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        function updateAdjacentCounts(row, col) {
+            for (let r = row - 1; r <= row + 1; r++) {
+                for (let c = col - 1; c <= col + 1; c++) {
+                    if (r >= 0 && r < rows && c >= 0 && c < cols && !(r === row && c === col)) {
+                        board[r][c].adjacentMines++;
+                    }
+                }
+            }
+        }
+
+        function checkWin() {
+            return board.flat().every(cell => cell.revealed || cell.mine);
+        }
+
+        function updateEncouragement() {
+            const encouragementMessages = [
+                "沛哥牛逼，干！",
+                "沛沛宝宝继续加油！",
+                "我的宝宝做得很好！",
+                "冲鸭面条姐，战！"
+            ];
+            const randomMessage = encouragementMessages[Math.floor(Math.random() * encouragementMessages.length)];
+            document.getElementById('encouragement').innerText = randomMessage;
+        }
+
+        function revealAllMines() {
+            document.querySelectorAll('.cell').forEach((cell, idx) => {
+                const r = Math.floor(idx / cols);
+                const c = idx % cols;
+                if (board[r][c].mine) {
+                    cell.classList.add('mine');
+                    cell.textContent = '💣';
+                }
+            });
+        }
+
+        function displayHearts() {
+            const backgroundDecorations = document.getElementById('background-decorations');
+            for (let i = 0; i < 50; i++) {
+                const heart = document.createElement('div');
+                heart.className = 'heart';
+                heart.textContent = '❤️';
+                heart.style.left = `${Math.random() * 100}%`;
+                heart.style.animationDuration = `${Math.random() * 5 + 5}s`;
+                heart.style.fontSize = `${Math.random() * 30 + 20}px`;
+                backgroundDecorations.appendChild(heart);
+            }
+        }
+
+        function placeStars() {
+            const backgroundDecorations = document.getElementById('background-decorations');
+            for (let i = 0; i < 10; i++) {
+                const star = document.createElement('div');
+                star.className = 'star';
+                star.textContent = '⭐';
+                star.style.left = `${Math.random() * 100}%`;
+                star.style.top = `${Math.random() * 100}%`;
+                star.style.fontSize = `${Math.random() * 20 + 20}px`;
+                backgroundDecorations.appendChild(star);
+            }
+        }
+
+        // Start game on page load
+        showModeSelection();
+    </script>
+</body>
+</html>
